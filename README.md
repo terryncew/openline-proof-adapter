@@ -1,97 +1,82 @@
 # OpenLine Proof Adapter
 
-Portable OLP-style receipts for the messy agent stack people already use.
+> Portfolio status: **Repaired Experimental Adapter - v0.2.0**
 
-This is not another agent framework. It sits beside n8n, LangGraph, CrewAI,
-AutoGen, MCP tools, LangSmith, Langfuse, and plain Python. It watches boundary
-events and writes small receipts before the stack burns money, loses context,
-silently changes, or touches something it should not touch.
+OpenLine Proof Adapter watches boundary events from n8n, LangGraph, CrewAI,
+AutoGen, MCP tools, and plain Python. It applies small local policies for loops,
+budget pressure, handoff loss, workflow drift, and unapproved destructive
+actions, then emits a signed receiver-owned assessment.
 
-Core line:
+This repository is an adapter, not the Evidence Gateway or the Receipt Gate.
+It does not establish that an event or claim is true, undo an upstream side
+effect, or turn a self-attested observation into independent provenance.
 
-> A log shows what happened inside one tool.  
-> A receipt travels across the stack.
+## What v0.2 repairs
 
-## What It Replaces
+The July 2026 evidence-graded review identified four production blockers. This
+release addresses each one:
 
-- random logs
-- screenshots as proof
-- manual QA notes
-- static prompt evals
-- after-the-fact trace archaeology
-- "trust me bro" agent claims
+1. **No default signing key.** Construction fails unless the caller supplies an
+   Ed25519 key object, exactly 32 raw key bytes, or a mode-0600 key file. Text
+   passphrases and deterministic development defaults are rejected.
+2. **Interleaved runs verify correctly.** One JSONL file may contain multiple
+   per-run chains. Python and independent Node verifiers track sequence,
+   parent, and duplicate event IDs separately for each `run_id`.
+3. **Denied state never becomes trusted state.** A workflow snapshot is promoted
+   only after `COMMIT`. Repeating a denied snapshot remains denied, including
+   after an adapter restart. The log records the exact promoted-state
+   commitment used to restore that baseline.
+4. **The private wire envelope is retired.** v0.2 uses
+   `olp-canonical-json-int-v1`, SHA-256 over the canonical signed body, Ed25519,
+   explicit `self` / `provisional` trust labels, strict fields, and the Receipt
+   Gate disposition vocabulary. The adapter receipt is a documented derived
+   profile; it does not masquerade as one of Wire Canon 0.1's capture kinds.
 
-## What It Enhances
+The original v0.1 sample log remains unchanged under
+`history/receipts-v0.1.0.jsonl`. A v0.1 log is readable as raw history but cannot
+be extended as a v0.2 chain.
 
-- LangSmith / Langfuse: add portable regression and guard receipts
-- LangGraph: add signed retry, handoff, and budget receipts
-- n8n: add workflow liveness, version, and silent-change receipts
-- MCP tools: add signed tool-call receipts and permission gates
-- CrewAI / AutoGen: add loop brakes and handoff pullback receipts
-- local agents: add one receipt format across model providers
+## Decisions
 
-## What It Catches
+The assessment and operational decision are separate:
 
-The demo and tests cover four Reddit-shaped production failures:
-
-1. A tool call repeats until the run starts burning money.
-2. An n8n-style workflow changes or goes inactive without a useful record.
-3. A handoff digest loses a hard constraint.
-4. A destructive action tries to run without approval.
-
-Each event produces a compact OLP-style receipt:
-
-```json
-{
-  "kind": "olp_proof_adapter_receipt",
-  "run_id": "demo-run",
-  "system": "langgraph",
-  "action": "search",
-  "claim": "Repeated tool call pattern indicates a possible runaway loop.",
-  "evidence_hash": "sha256...",
-  "result": "red",
-  "witness": "openline-proof-adapter",
-  "parent_hash": "sha256...",
-  "key_id": "local-witness",
-  "payload_hash": "sha256...",
-  "signature": {
-    "algorithm": "ed25519",
-    "public_key": "...",
-    "value": "..."
-  }
-}
+```text
+VERIFIED     -> COMMIT
+UNDECIDABLE  -> QUARANTINE or NO_BADGE
+REJECTED     -> QUARANTINE, DENY, NO_BADGE, or ROLLBACK_REQUEST
 ```
 
-The receipt commits what crossed the boundary. With the pinned witness public
-key, it also attests which witness issued it. It does not prove the underlying
-claim is true.
+The current policies emit `COMMIT`, `QUARANTINE`, or `DENY`. The older
+green/amber/red view remains available through `decision.result` and
+`receipt.result` for migration only.
 
 ## Quickstart
 
-Run the demo:
+Install and create a local key once:
 
 ```bash
-python3 examples/reddit_stack_demo.py
+python -m pip install -e .
+python - <<'PY'
+from openline_proof_adapter import generate_private_key_file
+print(generate_private_key_file(".secrets/proof-adapter.key"))
+PY
 ```
 
-Run tests:
+The key generator refuses to overwrite an existing file and creates it with
+mode `0600`.
 
-```bash
-python3 -m unittest discover -s tests -v
-```
-
-Use it in plain Python:
+Use the adapter:
 
 ```python
 from openline_proof_adapter import BoundaryEvent, PolicyConfig, ProofAdapter
 
 adapter = ProofAdapter(
     receipts_path="receipts.jsonl",
-    signer_key="replace-with-your-ed25519-private-seed",
-    key_id="local-witness",
+    signer_key_path=".secrets/proof-adapter.key",
+    key_id="receiver-proof-adapter-2026-01",
     config=PolicyConfig(
         max_same_tool_calls=2,
-        token_budget=2000,
+        token_budget=2_000,
         handoff_required_terms={"without", "pip", "conda"},
     ),
 )
@@ -112,34 +97,56 @@ if decision.should_block:
     raise RuntimeError(decision.claim)
 ```
 
-Verify an attested chain:
+The key used to authorize verification must come from receiver-controlled
+configuration. Never trust the public key merely because it appears inside the
+receipt.
+
+## Verify a mixed-run log
+
+Python:
 
 ```python
 from openline_proof_adapter import ReceiptLog, verify_chain
 
 receipts = ReceiptLog("receipts.jsonl").load()
-assert verify_chain(receipts, public_key=adapter.public_key, key_id="local-witness")
+assert verify_chain(
+    receipts,
+    public_key=TRUSTED_RECEIVER_PUBLIC_KEY,
+    key_id="receiver-proof-adapter-2026-01",
+)
 ```
 
-Hash-only integrity checks are available as `verify_receipt_integrity` and
-`verify_chain_integrity`, but they do not prove witness identity.
+Independent Node verifier:
 
-Loop detection can be tuned for legitimate parameter sweeps:
-
-```python
-PolicyConfig(loop_fingerprint_fields={"search": {"query"}})
+```bash
+node verify-receipts-node.mjs receipts.jsonl \
+  --trusted-key "$TRUSTED_RECEIVER_PUBLIC_KEY"
 ```
 
-That keeps repeated identical searches catchable while allowing a real
-multi-city search comparison to proceed.
+Hash-only checks remain available as `verify_receipt_integrity` and
+`verify_chain_integrity`. They establish internal continuity, not signer
+authority.
 
-## Public Demo Claim
+## Demo and release check
 
-Most agent stacks already have traces.
+```bash
+python examples/reddit_stack_demo.py
+python -m unittest discover -s tests -v
+python scripts/release_check.py
+```
 
-What they lack is standing.
+The demo creates a fresh in-memory key each time and labels it as having no
+production authority. The release check performs a clean package install from
+an unrelated directory and verifies its output independently in Node.
 
-OpenLine Proof Adapter turns fragile agent events into portable receipts that
-can survive outside the tool that created them.
+## Receipt boundary
+
+The signed receipt contains the event identity, policy result, evidence hash,
+usage count, per-run sequence and parent, and control-state commitments. Raw
+event payloads are excluded.
+
+Read [the receipt profile](docs/BOUNDARY_RECEIPT_PROFILE.md),
+[migration guide](docs/MIGRATION.md), and
+[threat model](docs/THREAT_MODEL.md) before relying on the output.
 
 Small receipts. Big accountability.

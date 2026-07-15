@@ -1,0 +1,194 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/terryncew/openline-proof-adapter/blob/main/schemas/boundary-assessment-receipt.schema.json",
+  "title": "OpenLine Proof Adapter boundary assessment receipt 0.2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "receipt_version",
+    "algorithm_id",
+    "canonicalization_id",
+    "spec_uri",
+    "wire_canon_uri",
+    "attestation",
+    "capture_status",
+    "issuer",
+    "created_at",
+    "event",
+    "claim",
+    "evidence",
+    "verdict",
+    "decision",
+    "policy",
+    "control",
+    "usage",
+    "binding",
+    "next_use_note",
+    "privacy",
+    "payload_hash",
+    "signature"
+  ],
+  "properties": {
+    "kind": { "const": "proof_adapter_boundary_assessment_receipt" },
+    "receipt_version": { "const": "0.2" },
+    "algorithm_id": { "const": "openline-proof-adapter-boundary-0.2" },
+    "canonicalization_id": { "const": "olp-canonical-json-int-v1" },
+    "spec_uri": {
+      "const": "https://github.com/terryncew/openline-proof-adapter/blob/main/docs/BOUNDARY_RECEIPT_PROFILE.md"
+    },
+    "wire_canon_uri": { "const": "https://github.com/terryncew/olp-wire-canon" },
+    "attestation": { "const": "self" },
+    "capture_status": { "const": "provisional" },
+    "issuer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "key_id"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "key_id": { "type": "string", "minLength": 1 }
+      }
+    },
+    "created_at": { "type": "string", "format": "date-time" },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "system", "type", "action"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "system": { "type": "string", "minLength": 1 },
+        "type": { "type": "string", "minLength": 1 },
+        "action": { "type": "string", "minLength": 1 }
+      }
+    },
+    "claim": { "type": "string", "minLength": 1 },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hash", "hash_algorithm", "encoding"],
+      "properties": {
+        "hash": { "$ref": "#/$defs/hash256" },
+        "hash_algorithm": { "const": "sha256" },
+        "encoding": { "const": "proof-adapter-evidence-json-v1" }
+      }
+    },
+    "verdict": { "enum": ["VERIFIED", "REJECTED", "UNDECIDABLE"] },
+    "decision": {
+      "enum": ["COMMIT", "QUARANTINE", "DENY", "NO_BADGE", "ROLLBACK_REQUEST"]
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version", "hash", "snapshot"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "minLength": 1 },
+        "hash": { "$ref": "#/$defs/hash256" },
+        "snapshot": {
+          "type": "object",
+          "required": ["policy_id", "policy_version"],
+          "properties": {
+            "policy_id": { "type": "string", "minLength": 1 },
+            "policy_version": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    },
+    "control": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tool_intent_hash",
+        "workflow_name",
+        "workflow_state_hash",
+        "state_promoted"
+      ],
+      "properties": {
+        "tool_intent_hash": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/hash256" }]
+        },
+        "workflow_name": {
+          "oneOf": [{ "type": "null" }, { "type": "string", "minLength": 1 }]
+        },
+        "workflow_state_hash": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/hash256" }]
+        },
+        "state_promoted": { "type": "boolean" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "state_promoted": { "const": true } } },
+          "then": {
+            "properties": {
+              "workflow_name": { "type": "string", "minLength": 1 },
+              "workflow_state_hash": { "$ref": "#/$defs/hash256" }
+            }
+          }
+        }
+      ]
+    },
+    "usage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tokens_used"],
+      "properties": {
+        "tokens_used": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      }
+    },
+    "binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["run_id", "sequence", "parent_hash"],
+      "properties": {
+        "run_id": { "type": "string", "minLength": 1 },
+        "sequence": { "type": "integer", "minimum": 1 },
+        "parent_hash": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/hash256" }]
+        }
+      }
+    },
+    "next_use_note": { "type": "string", "minLength": 1 },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["raw_evidence_stored"],
+      "properties": { "raw_evidence_stored": { "const": false } }
+    },
+    "payload_hash": { "$ref": "#/$defs/hash256" },
+    "signature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "public_key", "value"],
+      "properties": {
+        "algorithm": { "const": "Ed25519" },
+        "public_key": { "$ref": "#/$defs/hash256" },
+        "value": { "type": "string", "pattern": "^[0-9a-f]{128}$" }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "verdict": { "const": "VERIFIED" } } },
+      "then": { "properties": { "decision": { "const": "COMMIT" } } }
+    },
+    {
+      "if": { "properties": { "verdict": { "const": "UNDECIDABLE" } } },
+      "then": { "properties": { "decision": { "enum": ["QUARANTINE", "NO_BADGE"] } } }
+    },
+    {
+      "if": { "properties": { "verdict": { "const": "REJECTED" } } },
+      "then": {
+        "properties": {
+          "decision": { "enum": ["QUARANTINE", "DENY", "NO_BADGE", "ROLLBACK_REQUEST"] }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "hash256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}

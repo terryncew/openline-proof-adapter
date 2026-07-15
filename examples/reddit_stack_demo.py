@@ -14,18 +14,23 @@ import json
 import sys
 from pathlib import Path
 
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from openline_proof_adapter import BoundaryEvent, PolicyConfig, ProofAdapter, ReceiptLog, verify_chain
 
 
-DEMO_SIGNER_KEY = "demo-witness-key-change-me"
 DEMO_KEY_ID = "demo-local-witness"
 
 
-def run_demo(receipts_path: str = "receipts.jsonl") -> dict:
+def run_demo(
+    receipts_path: str = "receipts.jsonl",
+    signer_key: Ed25519PrivateKey | None = None,
+) -> dict:
     path = Path(receipts_path)
     path.write_text("", encoding="utf-8")
+    demo_key = signer_key or Ed25519PrivateKey.generate()
 
     adapter = ProofAdapter(
         receipts_path=receipts_path,
@@ -34,7 +39,7 @@ def run_demo(receipts_path: str = "receipts.jsonl") -> dict:
             token_budget=2_000,
             handoff_required_terms={"without", "pip", "conda"},
         ),
-        signer_key=DEMO_SIGNER_KEY,
+        signer_key=demo_key,
         key_id=DEMO_KEY_ID,
     )
 
@@ -120,6 +125,8 @@ def run_demo(receipts_path: str = "receipts.jsonl") -> dict:
     return {
         "receipts": len(receipts),
         "chain_valid": verify_chain(receipts, public_key=adapter.public_key, key_id=DEMO_KEY_ID),
+        "public_key": adapter.public_key,
+        "key_boundary": "ephemeral demo key; no production authority",
         "decisions": decisions,
         "red_count": sum(1 for _, result, _, _ in decisions if result == "red"),
         "amber_count": sum(1 for _, result, _, _ in decisions if result == "amber"),

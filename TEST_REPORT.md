@@ -1,58 +1,75 @@
-# Test Report
+# Test Report - v0.2.0
 
-Verification date: 2026-07-03
+Verification date: 2026-07-15
 
-## Commands
-
-```bash
-python3 -m unittest discover -s tests -v
-python3 examples/reddit_stack_demo.py
-```
-
-## Unit Tests
-
-Result: pass
+## Result
 
 ```text
-Ran 14 tests in 0.013s
-OK
+26 tests passed
+7 of 7 release gates passed
+clean install from an unrelated directory passed
+independent Node verification passed
 ```
 
-Coverage by behavior:
+Commands:
 
-- repeated tool-call loop gets a red receipt
-- token budget guard returns amber before surprise spend
-- workflow silent change gets a red receipt
-- inactive workflow gets a red receipt
-- lossy handoff triggers pullback
-- destructive action requires approval
-- receipt hash chain verifies and detects tampering
-- forged receipts fail attested verification without the witness key
-- public-key verifiers cannot forge the next receipt
-- high-risk handoff terms use word-boundary matching
-- near-repeat tool calls trip the loop brake
-- configured fingerprints allow legitimate multi-city search comparisons
-- non-JSON-serializable payloads still receive receipts
-
-## Demo Result
-
-```json
-{
-  "amber_count": 1,
-  "chain_valid": true,
-  "green_count": 2,
-  "receipts": 7,
-  "red_count": 3
-}
+```bash
+python -m unittest discover -s tests -v
+python examples/reddit_stack_demo.py
+python scripts/release_check.py
 ```
 
-The demo emits receipts for four Reddit-shaped agent-stack failures:
+## Review finding coverage
 
-- retry loop
-- silent workflow change
-- lossy handoff
-- unapproved destructive action
+### Deterministic default key
 
-The receipt trail commits what crossed the boundary. With the pinned witness
-public key, it also attests which witness issued the receipt. It does not prove
-the underlying claim is true.
+- construction without a key fails;
+- text passphrases are rejected;
+- generated key files are exclusive and mode `0600`;
+- overly broad key-file permissions are rejected;
+- the demo uses a fresh in-memory key with no production authority.
+
+### Multiple run chains in one log
+
+- interleaved runs verify in Python;
+- the same log verifies independently in Node;
+- each run has its own sequence and parent;
+- duplicate event IDs, gaps, wrong parents, body mutation, and duplicate JSON
+  keys are rejected;
+- adapter restart continues the existing per-run chain.
+
+### Blocked workflow state
+
+- a denied snapshot is recorded but never promoted;
+- repeating the same unauthorized snapshot remains denied;
+- the behavior survives adapter restart;
+- only a `COMMIT` receipt may set `state_promoted: true`.
+
+### Wire discipline
+
+- v0.2 uses `olp-canonical-json-int-v1`;
+- payload hash and Ed25519 signature cover the same canonical body;
+- trust remains explicitly `self` and `provisional`;
+- the schema is strict and raw event payloads are excluded;
+- `VERIFIED`, `REJECTED`, and `UNDECIDABLE` remain separate from the five
+  Receipt Gate dispositions;
+- the adapter profile is documented as derived rather than misrepresented as a
+  core Wire Canon 0.1 capture kind.
+
+## Additional regression coverage
+
+- loop brake and near-repeat detection;
+- configurable intent fingerprints;
+- token-budget quarantine;
+- handoff pullback and word-boundary matching;
+- approval denial for destructive actions;
+- authorized-key verification and attacker-key rejection;
+- deterministic hashing for supported non-JSON evidence values;
+- preservation and explicit refusal to extend the historical v0.1 log.
+
+## Claim boundary
+
+These results establish internal consistency, clean package execution, and
+cross-language recomputation for the repaired profile. They do not establish
+production security, independent capture, evidence truth, complete event
+coverage, market demand, or safety under host compromise.

@@ -1,0 +1,28 @@
+{
+  "claim_boundary": "These gates show internal consistency, clean package execution, and independent recomputation of the repaired receipt and per-run chain behavior. They do not establish production security, independent capture, evidence truth, or market demand.",
+  "details": {
+    "clean_install_returncode": 0,
+    "historical_receipt_sha256": "d1b766218accdda2de3f951634d15fc1b9f80e8b301ebf2c6a31bc1474d70614",
+    "installed_node_report": {
+      "count": 3,
+      "errors": [],
+      "run_count": 2,
+      "valid": true
+    },
+    "unit_test_summary": "Ran 26 tests"
+  },
+  "gate_count": 7,
+  "gates": {
+    "clean_install": true,
+    "independent_node_verification": true,
+    "installed_package_issues_and_verifies": true,
+    "no_known_development_signing_key": true,
+    "schema_document_valid": true,
+    "unit_and_hostile_tests": true,
+    "v010_history_preserved": true
+  },
+  "passed": true,
+  "passed_gate_count": 7,
+  "schema": "openline.proof_adapter.release_check.v0.2",
+  "version": "0.2.0"
+}
